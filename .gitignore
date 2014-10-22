@@ -1,6 +1,8 @@
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
+stimuli/
+data/
 
 # C extensions
 *.so

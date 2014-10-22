@@ -10,21 +10,23 @@ Documentation for the stimuli can be found in corresponding C files.
 The result of 'record' is to store recorded EEG values in a numpy array and save it in binary format.
 """
 
-from emokit.emotiv import Emotiv
 import platform
 if platform.system() == "Windows":
     import socket  # Needed to prevent gevent crashing on Windows. (surfly / gevent issue #459)
 import gevent
-import time
 import signal
 import sys
+import os
+from subprocess import Popen
 import matplotlib.pyplot as plt
 from collections import deque
 from gevent.queue import Queue
-from gevent.event import Event
-from gevent.util import wrap_errors
 import numpy as np
+import scipy.io as sio
 import argparse
+
+from emokit.emotiv import Emotiv
+from util import config
 
 SERIAL = "SN201308221848GM" # only necessary for OSX
 
@@ -37,18 +39,21 @@ class Recorder(object):
         self.isRunning = False
         self.isRecording = False
 
-        self.sensors = ['F3','FC5', 'AF3', 'F7', 'T7', 'P7', 'O1', 'O2', 'P8', 'T8', 'F8', 'AF4', 'FC6', 'F4'] 
+        self.sensors = config.SENSORS
         self.PLOT_MIN_Y = 0
         self.PLOT_MAX_Y = 1000
-        self.ITERATIONS = 1
-        self.RECORDING_PERIOD = 10
-        self.PAUSE_INTER_INTERATIONS = 5
-        self.FILENAME = "ciao.txt"
+
+        #### PROTOCOL DEFINITION ####
+        self.ITERATIONS = config.RECORDING_ITERATIONS
+        self.RECORDING_PERIOD = config.RECORDING_PERIOD # Recording stimulated SSVEP
+        self.PAUSE_INTER_RECORDING = config.PAUSE_INTER_RECORDING
+        self.STIMULI_PATH = config.STIMULI_PATH
+        self.DATA_PATH = config.DATA_PATH
+        self.FILENAME = "emotiv_original_3"
 
         self.headset = emotiv
         self.plotQueue = Queue()
         self.recorderQueue = Queue()
-        self.recordingEvt = Event()
 
     def get_sensors_info(self):
         """
@@ -81,39 +86,49 @@ class Recorder(object):
         Greenlet that controls recording process.
         Performs many iterations of recording response to the stimuli, first left and then right.
         """
+        frequencies = ['64', '80'] # SX DX
+        SX = [os.path.join(self.STIMULIPATH, exe) for exe in os.listdir(self.STIMULIPATH) if exe.endswith("Sx.exe")]
+        DX = [os.path.join(self.STIMULIPATH, exe) for exe in os.listdir(self.STIMULIPATH) if exe.endswith("Dx.exe")]
+
+        SXwindow = Popen(args=[SX, frequencies[0]])
+        DXwindow = Popen(args=[DX, frequencies[1]])
+
+        SXwindow = Popen(args=SX)
+        DXwindow = Popen(args=DX)
+        gevent.sleep(10)
         try:
             for i in xrange(self.ITERATIONS):
                 # SX
-                for i in xrange(self.PAUSE_INTER_INTERATIONS):
-                    print ('Seconds to record SX: %i' % (self.PAUSE_INTER_INTERATIONS - i))
+                for i in xrange(self.PAUSE_INTER_RECORDING):
+                    print ('Seconds to record SX: %i' % (self.PAUSE_INTER_RECORDING - i))
                     gevent.sleep(1)
 
                 print ('Start recording SX')
                 self.isRecording = True
-                self.recordingEvt.set()
                 gevent.sleep(self.RECORDING_PERIOD)
                 
-                self.recordingEvt.clear()
                 self.isRecording = False
                 print ('Stop recording SX')
                 
                 # DX
-                for i in xrange(self.PAUSE_INTER_INTERATIONS):
-                    print ('Seconds to record DX: %i' % (self.PAUSE_INTER_INTERATIONS - i))
+                for i in xrange(self.PAUSE_INTER_RECORDING):
+                    print ('Seconds to record DX: %i' % (self.PAUSE_INTER_RECORDING - i))
                     gevent.sleep(1)
                 
                 print ('Start recording DX')
-                self.recordingEvt.set()
                 self.isRecording = True
                 gevent.sleep(self.RECORDING_PERIOD)
 
-                self.recordingEvt.clear()
                 self.isRecording = False
                 print ('Stop recording DX')
         except Exception as e:
             print ('Controller error: %s' % e)
             self.isRunning = False
         finally:
+            if SXwindow is not None:
+                SXwindow.kill()
+            if DXwindow is not None:
+                DXwindow.kill()
             print ('Controller over')
             self.isRunning = False
 
@@ -124,26 +139,28 @@ class Recorder(object):
         data = None
 
         try:
-            while self.isRunning:
+            while self.isRunning or not self.recorderQueue.empty():
                 # Controller greenlets controls the recording
-                self.recordingEvt.wait()
-                while not self.recorderQueue.empty():
-                    values = self.recorderQueue.get()
-                    if data is None:
-                        data = np.array(values, dtype=int)
-                    else:
-                        data = np.vstack((data, values))
+                while self.isRecording or not self.recorderQueue.empty():
+                    while not self.recorderQueue.empty():
+                        buf = self.recorderQueue.get()
 
+                        if data is None:
+                            data = np.array(buf, dtype=int)
+                        else:
+                            data = np.vstack((data, buf))
+
+                    gevent.sleep(1)
                 gevent.sleep(0)
         except Exception as e:
             print ('Recorder error: %s' % e)
             self.isRunning = False
         finally:
             print ('Recorder over')
-            np.savetxt(self.FILENAME, data, fmt="%i")
+            sio.savemat(os.path.join(self.DATA_PATH, self.FILENAME), {'X' : data})
             self.isRunning = False
 
-    def plot(self, bufferSize = 50):
+    def plot(self, bufferSize = 500):
         """
             Greenlet that plot y once per .1
             The y scale is specified through global config but is dynamically adjusted
@@ -162,27 +179,30 @@ class Recorder(object):
         plt.axis([0, bufferSize, self.PLOT_MIN_Y, self.PLOT_MAX_Y])
 
         try:
-            while self.isRunning:
-                while not self.plotQueue.empty() and self.isRunning:
-                    if background is None:
-                        background = canvas.copy_from_bbox(ax.bbox)
-                    canvas.restore_region(background)
-
+           while self.isRunning:
+                while not self.plotQueue.empty():
                     # Getting values from queue
                     values = self.plotQueue.get()
-                    # Adjusting Y scale
-                    minY = min(min(buffers[0:])) - 100
-                    maxY = max(max(buffers[0:])) + 100
-                    plt.ylim([minY,maxY])
                     # Updating buffer
                     [buffers[i].appendleft(values[i]) for i in xrange(plotsNum)]
                     [buffers[i].pop() for i in xrange(plotsNum)]
-                    # Plot refreshes with new buffer
-                    [lines[i].set_ydata(buffers[i]) for i in xrange(plotsNum)]
 
-                    plt.draw()
-                    plt.pause(0.000001)
-                    gevent.sleep(.1)
+
+                if background is None:
+                    background = canvas.copy_from_bbox(ax.bbox)
+                canvas.restore_region(background)
+
+                # Adjusting Y scale
+                minY = min(min(buffers[0:])) - 100
+                maxY = max(max(buffers[0:])) + 100
+                plt.ylim([minY,maxY])
+                
+                # Plot refreshes with new buffer
+                [lines[i].set_ydata(buffers[i]) for i in xrange(plotsNum)]
+
+                plt.draw()
+                plt.pause(0.000001)
+                gevent.sleep(1)
         except Exception as e:
             print ('Plot error: %s' % e)
             self.isRunning = False
@@ -208,6 +228,7 @@ if __name__ == "__main__":
         headset.close()
         quit()
 
+        print headset.old_model
     recorder.isRunning = True
     if args.command[0] == 'plot':
         # Create the sensor data generator
