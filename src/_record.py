@@ -36,7 +36,7 @@ class Recorder(object):
     Recorder class. Producer, consumers and controller greenlets are methods of this class.
     Although not implemented, Recorder should be a Singleton.
     """
-    def __init__(self, emotiv, filename):
+    def __init__(self, emotiv):
         self.isRunning = False
         self.isRecording = False
 
@@ -46,13 +46,12 @@ class Recorder(object):
 
         #### PROTOCOL DEFINITION ####
         self.ITERATIONS = config.RECORDING_ITERATIONS
-        self.PERIOD = config.RECORDING_PERIOD # Recording stimulated SSVEP
+        self.RECORDING_PERIOD = config.RECORDING_PERIOD # Recording stimulated SSVEP
         self.PAUSE_INTER_RECORDING = config.PAUSE_INTER_RECORDING
         self.STIMULI_PATH = config.STIMULI_PATH
         self.DATA_PATH = config.DATA_PATH
-        self.FILENAME = filename
+        self.FILENAME = "emotiv_original_prova_low"
         self.LOW_FREQ = 1
-        self.NUM_STIMULI = 3
 
         self.headset = emotiv
         self.plotQueue = Queue()
@@ -65,17 +64,12 @@ class Recorder(object):
         """
         try:
             while self.isRunning:
-                buf = np.zeros((config.FS, len(self.sensors)))
-                for i in range(len(buf)):
-                    packet = self.headset.dequeue()
-                    values = [packet.sensors[name]['value'] for name in self.sensors]
-                    buf[i] = np.array(values)
-
-                gevent.sleep(0) # need cause recording could be over
+                packet = self.headset.dequeue()
+                values = [packet.sensors[name]['value'] for name in self.sensors]
                 if self.plotQueue is not None:
-                    self.plotQueue.put_nowait(buf)
+                	self.plotQueue.put_nowait(values)
                 if self.recorderQueue is not None and self.isRecording:
-                    self.recorderQueue.put_nowait(buf)
+                	self.recorderQueue.put_nowait(values)
                 
                 gevent.sleep(0)
         except KeyboardInterrupt:
@@ -117,7 +111,7 @@ class Recorder(object):
 
                 print ('Start recording TOP')
                 self.isRecording = True
-                gevent.sleep(self.PERIOD)
+                gevent.sleep(self.RECORDING_PERIOD)
                 
                 self.isRecording = False
                 print ('Stop recording TOP')
@@ -130,7 +124,7 @@ class Recorder(object):
 
                 print ('Start recording SX')
                 self.isRecording = True
-                gevent.sleep(self.PERIOD)
+                gevent.sleep(self.RECORDING_PERIOD)
                 
                 self.isRecording = False
                 print ('Stop recording SX')
@@ -143,7 +137,7 @@ class Recorder(object):
                 
                 print ('Start recording DX')
                 self.isRecording = True
-                gevent.sleep(self.PERIOD)
+                gevent.sleep(self.RECORDING_PERIOD)
 
                 self.isRecording = False
                 print ('Stop recording DX')
@@ -164,8 +158,8 @@ class Recorder(object):
         """
         Greenlet that store data read from the headset into a numpy array
         """
-        data = np.empty( (self.ITERATIONS * self.PERIOD * self.NUM_STIMULI, config.FS, len(self.sensors)) )
-        counter = 0
+        data = None
+
         try:
             while self.isRunning or not self.recorderQueue.empty():
                 # Controller greenlets controls the recording
@@ -173,8 +167,10 @@ class Recorder(object):
                     while not self.recorderQueue.empty():
                         buf = self.recorderQueue.get()
 
-                        data[counter] = buf
-                        counter += 1
+                        if data is None:
+                            data = np.array(buf, dtype=int)
+                        else:
+                            data = np.vstack((data, buf))
 
                     gevent.sleep(1)
                 gevent.sleep(0)
@@ -183,11 +179,10 @@ class Recorder(object):
             self.isRunning = False
         finally:
             print ('Recorder over')
-            data = data.reshape((self.ITERATIONS * self.PERIOD * self.NUM_STIMULI * config.FS, len(self.sensors)))
             sio.savemat(os.path.join(self.DATA_PATH, self.FILENAME), {'X' : data})
             self.isRunning = False
 
-    def plot(self, bufferSize = 1000):
+    def plot(self, bufferSize = 500):
         """
             Greenlet that plot y once per .1
             The y scale is specified through global config but is dynamically adjusted
@@ -206,14 +201,14 @@ class Recorder(object):
         plt.axis([0, bufferSize, self.PLOT_MIN_Y, self.PLOT_MAX_Y])
 
         try:
-            while self.isRunning:
+           while self.isRunning:
                 while not self.plotQueue.empty():
                     # Getting values from queue
                     values = self.plotQueue.get()
                     # Updating buffer
-                    for j in range(len(values)):
-                        [buffers[i].appendleft(values[j, i]) for i in xrange(plotsNum)]
-                        [buffers[i].pop() for i in xrange(plotsNum)]
+                    [buffers[i].appendleft(values[i]) for i in xrange(plotsNum)]
+                    [buffers[i].pop() for i in xrange(plotsNum)]
+
 
                 if background is None:
                     background = canvas.copy_from_bbox(ax.bbox)
@@ -244,6 +239,7 @@ if __name__ == "__main__":
 
     # Creating headset Object. No console output. No research headset
     headset = Emotiv(False, SERIAL, False)
+    recorder = Recorder(headset)
 
     # Create a Greenlet for the setup...
     setupGLet = gevent.spawn(headset.setup)
@@ -255,10 +251,8 @@ if __name__ == "__main__":
         quit()
 
         print headset.old_model
-    
+    recorder.isRunning = True
     if args.command[0] == 'plot':
-        recorder = Recorder(headset, None)
-        recorder.isRunning = True
         # Create the sensor data generator
         g1 = gevent.spawn(recorder.get_sensors_info)
         # Create plot routine
@@ -268,9 +262,6 @@ if __name__ == "__main__":
         # Run them until termination
         gevent.joinall([g1, g2])
     elif args.command[0] == 'record':
-        filename = raw_input('File name: ')
-        recorder = Recorder(headset, filename)
-        recorder.isRunning = True
         # Create the sensor data generator
         g1 = gevent.spawn(recorder.get_sensors_info)
         # Create plot routine
@@ -278,7 +269,7 @@ if __name__ == "__main__":
         # Create recorder and controller routines
         g3 = gevent.spawn(recorder.recorder)
         g4 = gevent.spawn(recorder.controller)
-        # Kill all at Ctrl+C
+        # Kill both at Ctrl+C
         gevent.signal(signal.SIGINT, gevent.killall, [g1, g2, g3, g4])
         # Run them until termination
         try:

@@ -10,7 +10,6 @@ import numpy as np
 from scipy.signal import remez
 from scipy.signal import ellip
 from scipy.signal import welch
-import config
 import matplotlib.pyplot as plt
 
 from numpy.lib.stride_tricks import as_strided as ast
@@ -109,15 +108,20 @@ def norm_shape(shape):
 def CAR(n):
     return np.eye(n) - 1. / float(n)
 
-def get_passband_filter(passband, ellip = True):
+def get_passband_filter(passband, Fs, ellip = True):
     """
     passband needs to contain 6 elements, following style [0., stopband1, passband1, passband2, stopband2, nyquist]
     """
-    if ellip:
-        return _get_elliptic_filter(passband)
-    else: return _get_fir_filter(passband)
+    try:
+        if ellip:
+            return _get_elliptic_filter(passband, Fs)
+        else: return _get_fir_filter(passband, Fs)
+    except ValueError as v:
+        print str(v)
+        print "Filter error. Have you set proper Fs in config.py?"
+        exit(1)
 
-def _get_elliptic_filter(passband, order = 5, rp = 1, rs = 15):
+def _get_elliptic_filter(passband, fs, order = 5, rp = 1, rs = 15):
     """
     Return an n-th order elliptic passband filter (default 5th)
     The resulting passband filter will be of order 2 * order
@@ -126,14 +130,15 @@ def _get_elliptic_filter(passband, order = 5, rp = 1, rs = 15):
     rp = 1 (maximum passband ripple allowed in db)
     rs = 15 (minimum stopband attenuation required in db)
     """
-    band = passband[2:4] / (config.FS / 2)
+    band = passband[2:4] / (fs / 2)
     return ellip(N = order, rp = rp, rs = rs, Wn = band, btype='pass')
 
-def _get_fir_filter(passband, order=183, weights=[5.75, 1., 5.75]):
+def _get_fir_filter(passband, fs, order=183, weights=[5.75, 1., 5.75], mask=[0, 1, 0]):
     """
     Return a n-th order FIR filter
     """
-    return remez(order, passband, [0, 1, 0], weights, Hz=config.FS), 1.
+    # return remez(order, passband, mask, weights, Hz=fs), 1.
+    return remez(order, passband, mask, Hz=fs), 1.
 
 def get_frequency_response(b, a, plot = False):
     w,h = signal.freqz(b,a)
@@ -160,15 +165,11 @@ def get_frequency_response(b, a, plot = False):
 
     return w / max(w), h_dB
 
-def get_psd(data, window, fs = config.FS, nfft=config.NFFT, plot = False):
+def get_psd(data, window, fs, nfft, plot = None):
     samples = window * fs
-    nfft = 4096
     f, PSD = welch(data, fs, 'hann', scaling = 'density', nfft=nfft, nperseg=samples)
 
     if plot:
-        plt.grid()
-        plt.plot(f, PSD)
-        plt.xlabel(r'Frequency')
-        plt.ylabel(r'PSD')
-
+        plot.grid()
+        plot.plot(f[np.where(f < 50)], PSD[np.where(f < 50)], label='PSD')
     return f, PSD

@@ -1,72 +1,107 @@
- # -*- coding: utf-8 -*-
- #!/usr/bin/env python
-
 import numpy as np
 import scipy.io as sio
-from scipy import signal
+import scipy.signal as signal
 import os
-from util import config, preprocessing, processing
-import matplotlib.pyplot as plt
+from util import config,preprocessing, processing, adapt_filtering, offline, performance
+import matplotlib.pyplot as pl
 
-DATA_FILE = "protocolo 7/celso_prot7_config1.mat"
+def filter_classify(dataFile):
+    # read data
+    data = sio.loadmat(os.path.join(config.DATA_PATH, dataFile))
+    EEG = data['X'].astype('float32', copy=False)
+
+    channels = np.array(['F3','P7','O1','O2','P8','F4'])
+    EEG = EEG[:, np.in1d(np.array(config.SENSORS), channels)]
+
+    # CAR FILTER
+    EEG -= EEG.mean(axis=0)
+    EEG = np.dot(EEG, preprocessing.CAR(EEG.shape[1]))
+
+    Fs = config.FS
+    freqs = [6.4, 6.9, 8]
+
+    # HIGHPASS FILTER
+    # Per Emotiv DEVE ESSERE DI ORDINE BASSO PER DARE UN POCHINO DI RITARDO
+    Wcritic = np.array([0., 4., 5., 64.])
+    b, a = preprocessing._get_fir_filter(Wcritic, config.FS, mask=[0, 1])
+    EEG = signal.filtfilt(b, (a,), EEG, axis=0)
 
 
-# read data
-data = sio.loadmat(os.path.join(config.DATA_PATH, DATA_FILE))
-X = data['data']
-
-Fs = 600
-window = 20 * Fs
-
-# CAR FILTER
-X -= X.mean(axis=0)
-X = np.dot(X, preprocessing.CAR(X.shape[1]))
-# mio segnale Oz
-y = X[window:2*window, 11:12]
-
-Wcritic = np.array([0., 4., 5., 49., 50., 300.])
-b, a = signal.remez(851, Wcritic, [0, 1, 0], [5.75, 1., 5.75], Hz=Fs, type='hilbert',grid_density=20), 1.
-y = signal.filtfilt(b, (a,), y, axis=0)
+    # Filter parameters
+    damp = .001
+    window = 6
+    nx = Fs * window
+    modelorder = 50
+    harmonics = 2
 
 
-f, p = preprocessing.get_psd(y[:,0], 4, fs=Fs, plot=True)
-plt.show()
+    channelSignal = np.in1d(channels, ['O2'])
+    channelNoise = np.in1d(channels, ['P7'])
+    s1 = EEG[:, channelSignal].reshape(len(EEG), 1) 
+    n1 = EEG[:, channelNoise].reshape(len(EEG), 1) 
+    
+    signalWindows = preprocessing.sliding_window(s1, (nx, s1.shape[1]), (Fs, s1.shape[1]))
+    noiseWindows = preprocessing.sliding_window(n1, (nx, s1.shape[1]), (Fs, s1.shape[1]))
 
-import pickle
-fp = open("shared5.6.pkl","w")
-pickle.dump(y, fp)
-exit()
+    msi = processing.MSI(freqs, nx, Fs)
+    psda = processing.PSDA(freqs, nx, Fs)
 
-freq = 5.6
-time = np.arange(window, dtype=float) / Fs
-x = np.empty((4, time.shape[0]))
-x[0,:] = np.sin(2 * np.pi * freq * time)
-x[1,:] = np.cos(2 * np.pi * freq * time)
-x[2,:] = np.sin(4 * np.pi * freq * time)
-x[3,:] = np.cos(4 * np.pi * freq * time)
-# X is orthogonal <=> np.corrcoef(x.T) is diagonal
+    anc = adapt_filtering.ANC(modelorder, damp)
 
-w = np.zeros((1, x.shape[0])).T
+    befores = np.empty( (len(signalWindows), len(freqs)) )
+    afters = np.empty( (len(signalWindows), len(freqs)) )
+    signalFiltered = np.empty((len(signalWindows), nx, len(channelSignal)))
+    for ii, (signalWin, noiseWin) in enumerate(zip(signalWindows, noiseWindows)):
+        ys = []
 
-# Sufficient for stability: 0 < mu < 1 / tr(R)
-# R = E[x * x.T]  = np.corrcoef(x.T)
-mu = 0.001
-filterlen = 10
+        #### ONE FILTER
+        _, y = anc.filter(noiseWin, signalWin)
 
-MSE = np.empty((window))
-W = np.empty((window, 4, 1))
+        signalFiltered[ii] = y
+        # fig, ax = pl.subplots( nrows=3 )
+        # ax[2].plot(y)
+        # fb, PSDb = preprocessing.get_psd(signalWin[:,0], nx / Fs, Fs, config.NFFT, ax[0])
+        # fa, PSDa = preprocessing.get_psd(y[:,0], nx / Fs, Fs, config.NFFT, ax[1])
+        # pl.show()
+        
 
-for k in xrange(1, window):
+        for i, freq in enumerate(freqs):
+            x = processing.generate_references(nx, freq, Fs, harmonics)
+            # Compute MSI / PSDA indicators
+            befores[ii, i] = msi._compute_MSI(x, signalWin)
+            # f, PSD = preprocessing.get_psd(win[:,0], nx / Fs, Fs, config.NFFT)
+            # befores[ii, i] = processing.PSDA.compute_SNR(f, PSD, freq, Fs)
+            afters[ii, i] = msi._compute_MSI(x, y)
+            # f, PSD = preprocessing.get_psd(y[:,0], nx / Fs, Fs, config.NFFT)
+            # afters[ii, i] = processing.PSDA.compute_SNR(f, PSD, freq, Fs)
+        np.round(befores, 3)
+        np.round(afters, 3)
+        # print afters[ii, :], befores[ii, :]
+        # pl.show()
 
-    dPrime = np.dot(x[:,k-1:k].T, w)
-    e = y[k] - dPrime
-    w = w + 2 * mu * e * x[:,k-1:k]
+    label = offline.make_label_matrix(EEG.shape[0], config.RECORDING_PERIOD, window, config.FS, len(freqs))
+    # o1 = offline.offline_classify(signalWindows, freqs, msi)
+    # o = offline.offline_classify(signalFiltered, freqs, msi)
+    # print 100 * performance.get_accuracy(label, o1), 100 * performance.get_accuracy(label, o)
 
-    MSE[k] = e**2
-    W[k] = w
+    fig, ax = pl.subplots( nrows=2 )
+    fig.set_size_inches( 12, 8 )
+    plots = ax[0].plot(befores)
+    ax[0].plot(label * np.max(befores))
+    ax[0].legend(plots, map(str, freqs), loc=1)
+    start, end = ax[0].get_xlim()
+    ax[0].xaxis.set_ticks(np.arange(start, end, 5))
+    ax[0].grid()
+    plots = ax[1].plot(afters)
+    ax[1].plot(label * np.max(afters))
+    ax[1].legend(plots, map(str, freqs), loc=1)
+    ax[1].xaxis.set_ticks(np.arange(start, end, 5))
+    ax[1].grid()
+    pl.show()
 
-plt.subplot(211)
-plt.plot(W[:,:,0])
-plt.subplot(212)
-plt.plot(MSE)
-plt.show()
+
+if __name__ == '__main__':
+
+    DATA_FILE = "emotiv_original_flavio2_low.mat"
+    filter_classify(DATA_FILE)
+
