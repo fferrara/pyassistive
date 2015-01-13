@@ -6,26 +6,28 @@ Metodi vari per analisi offline
 import numpy as np
 from preprocessing import sliding_window
 
-def extract_windowed_segment(data, ws, iterations, period, fs):
+
+def extract_windowed_segment(data, ws, period, fs):
     """
     blablabla
     """
     segments = sliding_window(data, (fs * period, data.shape[1]), (fs * period, data.shape[1]))
     # Can't know the number of resulting windows. Instanciating with maximum possible number
-    windows = np.zeros((len(data) / fs, ws * fs, data.shape[1])) 
+    windows = np.zeros((len(data) / fs, ws * fs, data.shape[1]))
 
     length = 0
     for si, segment in enumerate(segments):
         wins = sliding_window(segment, (ws * fs, data.shape[1]), (fs, data.shape[1]))
 
         for wi, win in enumerate(wins):
-            ii = len(wins)*si + wi # global index
+            ii = len(wins) * si + wi  # global index
             windows[ii] = win
             length += 1
 
     return windows[0:length]
 
-def extract_segment_start(data, ws, iterations, period, fs, n=2):
+
+def extract_segment_start(data, ws, period, fs, n=2):
     """
     data : dataset to be segmented
     ws : window size
@@ -38,10 +40,10 @@ def extract_segment_start(data, ws, iterations, period, fs, n=2):
 
     Es. >>>>>>>
     """
-    windowsInPeriod = ws*2 <= period and n or 1
+    windowsInPeriod = ws * 2 <= period and n or 1
     segments = sliding_window(data, (fs * period, data.shape[1]))
     # Can't know the number of resulting windows. Instanciating with maximum possible number
-    windows = np.zeros((len(data) / (ws*fs), ws * fs, data.shape[1])) 
+    windows = np.zeros((len(data) / (ws * fs), ws * fs, data.shape[1]))
 
     length = 0
     for si, segment in enumerate(segments):
@@ -50,11 +52,12 @@ def extract_segment_start(data, ws, iterations, period, fs, n=2):
             wins = wins[0:windowsInPeriod]
 
         for wi, win in enumerate(wins):
-            ii = len(wins)*si + wi # global index
+            ii = len(wins) * si + wi  # global index
             windows[ii] = win
             length += 1
 
     return windows[0:length]
+
 
 def make_label_windows(iterations, period, window, classes):
     """
@@ -80,7 +83,7 @@ def make_label_windows(iterations, period, window, classes):
     label.fill(-2)
 
     i = 0
-    current = 0   
+    current = 0
     while current < length:
         # set label for each window range
         label[current:current + (period - window + 1)] = i
@@ -90,6 +93,7 @@ def make_label_windows(iterations, period, window, classes):
         current += period - window + 1
 
     return label
+
 
 def make_label_segments(iterations, period, window, classes):
     """
@@ -106,11 +110,11 @@ def make_label_segments(iterations, period, window, classes):
     Es. >>> make_label_matrix(iterations = 2, period = 20, window=5, classes = 3)
     array([0, 0, 1, 1, 2, 2, 0, 0, 1, 1, 2, 2])
     """
-    windowsInPeriod = window*2 <= period and 2 or 1
+    windowsInPeriod = window * 2 <= period and 2 or 1
     length = iterations * classes * windowsInPeriod
     label = np.zeros(length, dtype=int)
 
-    i = 0   
+    i = 0
     for it in range(0, length, windowsInPeriod):
         # set label for each window
         for w in range(windowsInPeriod):
@@ -144,7 +148,8 @@ def offline_classify(windows, frequencies, method):
 
     return out
 
-def pseudo_online_classify(windows, frequencies, fs, method, pause=1, step=4):
+
+def pseudo_online_classify(windows, frequencies, fs, method, period, pause=1, step=4):
     """
     Classify a recorded dataset data
     Windows must be an array representing windowed data. 
@@ -152,7 +157,7 @@ def pseudo_online_classify(windows, frequencies, fs, method, pause=1, step=4):
     Frequencies must be a list. Values in label must represent valid indexes in the list
     Method must offer a perform(data) method
 
-    Output only after reclassification
+    Output only if meet criteria
     Pause after each output
 
     Return a tuple (out, count, missed)
@@ -161,6 +166,7 @@ def pseudo_online_classify(windows, frequencies, fs, method, pause=1, step=4):
         count: # of outputs provided
         missed: # of windows with no output
     """
+
     missed = 0  # n° of windows without output
     count = 0  # n° of output provided
     out = np.empty((windows.shape[0]))
@@ -168,6 +174,7 @@ def pseudo_online_classify(windows, frequencies, fs, method, pause=1, step=4):
     # Windowing
     iterator = enumerate(windows)
     windowLength = windows.shape[1] / fs
+    winInSegment = period - windowLength + 1
     subSamples = (windowLength - 1) * fs
 
     for ii, win in iterator:
@@ -179,19 +186,21 @@ def pseudo_online_classify(windows, frequencies, fs, method, pause=1, step=4):
             temp.append(method.perform(subWindow))
 
         # computing classification "confidence"
-        for i in range(len(frequencies)):
-            if float(temp.count(frequencies[i])) / len(temp) >= 0.8:
+        for fIndex in range(len(frequencies)):
+            if float(temp.count(frequencies[fIndex])) / len(temp) > 0.8:
                 count += 1
-                out[ii] = i
+                out[ii] = fIndex
 
                 # simulate online waiting for gaze shift and full window
-                for i in range(pause + windowLength):
+                for j in range(pause + windowLength):
                     try:
+                        if ii + j + 1 >= ii + winInSegment:
+                            break
                         iterator.next()
-                        out[ii + i + 1] = -1
+                        out[ii + j + 1] = -1
                     except StopIteration:
-                        break # game over
-                break # important to the else branch not be executed
+                        break  # game over
+                break  # important to the else branch not be executed
         else:
             missed += 1
             out[ii] = -1

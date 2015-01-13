@@ -5,7 +5,7 @@ import numpy as np
 import scipy.io as sio
 import scipy.signal as signal
 import os
-from util import config,preprocessing, processing, offline, performance
+from util import config,preprocessing, featex, offline, performance
 import matplotlib.pyplot as pl
 
 class LMS(object):
@@ -66,7 +66,7 @@ if __name__ == "__main__":
     signalWindows = preprocessing.sliding_window(s1, (nx, s1.shape[1]), (Fs, s1.shape[1]))
     noiseWindows = preprocessing.sliding_window(n1, (nx, s1.shape[1]), (Fs, s1.shape[1]))
 
-    classifier = processing.MSI(freqs, nx - fOrder, Fs)
+    classifier = featex.MSI(freqs, nx - fOrder, Fs)
 
     outMonopolar = np.zeros(signalWindows.shape[0])
     outFiltered = np.zeros(signalWindows.shape[0])
@@ -88,8 +88,8 @@ if __name__ == "__main__":
             pl.axvspan(freq * 2 - 3, freq * 2 + 3, facecolor='r', alpha=.3)
             pl.show()
 
-        SNRsignal[ii] = processing.PSDA.compute_SNR(Fxx, Pxx, freq, Fs)
-        SNRnoise[ii] = processing.PSDA.compute_SNR(Fyy, Pyy, freq, Fs)
+        SNRsignal[ii] = featex.PSDA.compute_SNR(Fxx, Pxx, freq, Fs)
+        SNRnoise[ii] = featex.PSDA.compute_SNR(Fyy, Pyy, freq, Fs)
         
         lms = LMS( np.zeros(fOrder), mu=damp )
         for t in xrange( nx - fOrder):

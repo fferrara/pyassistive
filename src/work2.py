@@ -43,5 +43,5 @@ if __name__ == '__main__':
         except KeyboardInterrupt:
             break
 
-    # print 'Errors: %d, Undefined: %d' % (errors, undefined)
+    print 'Errors: %d, Undefined: %d' % (errors, undefined)
     print 'T: ', T / 20.

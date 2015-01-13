@@ -5,7 +5,7 @@ import numpy as np
 import scipy.io as sio
 import scipy.signal as signal
 import os
-from util import config,preprocessing, processing, offline, performance
+from util import config,preprocessing, featex, offline, performance
 import matplotlib.pyplot as pl
 import scipy.linalg as LA
 
@@ -44,7 +44,7 @@ def filter_and_accuracy(dataFile, signalChannel, noiseChannel):
     noiseWindows = preprocessing.sliding_window(n1, (nx, s1.shape[1]), (Fs, s1.shape[1]))
 
     # classifier = processing.PSDA(freqs, nx - fOrder, Fs)
-    classifier = processing.MSI(freqs, nx - fOrder, Fs)
+    classifier = featex.MSI(freqs, nx - fOrder, Fs)
 
     outBipolar = np.zeros(signalWindows.shape[0])
     outFiltered = np.zeros(signalWindows.shape[0])
@@ -66,8 +66,8 @@ def filter_and_accuracy(dataFile, signalChannel, noiseChannel):
             pl.axvspan(freqs[l1[ii]] * 2 - 3, freqs[l1[ii]] * 2 + 3, facecolor='r', alpha=.3)
             pl.show()
 
-        SNRsignal[ii] = processing.PSDA.compute_SNR(Fxx, Pxx, freqs[l1[ii]], Fs)
-        SNRnoise[ii] = processing.PSDA.compute_SNR(Fyy, Pyy, freqs[l1[ii]], Fs)
+        SNRsignal[ii] = featex.PSDA.compute_SNR(Fxx, Pxx, freqs[l1[ii]], Fs)
+        SNRnoise[ii] = featex.PSDA.compute_SNR(Fyy, Pyy, freqs[l1[ii]], Fs)
         
         lms = LMS( np.zeros(fOrder), mu=damp )
         for t in xrange( nx - fOrder):
@@ -136,12 +136,12 @@ if __name__ == "__main__":
   
     results = np.zeros((len(config.SUBJECTS),len(combs),3))
 
-    refs = [processing.generate_references(nx, f, Fs) for f in freqs]
+    refs = [featex.generate_references(nx, f, Fs) for f in freqs]
 
     
-    for ii, name in enumerate(config.SUBJECTS):
+    for ii, name in enumerate(config.SUBJECTS_SANDRA):
         DATA_FILE = "protocolo 7/%s_prot7_config1.mat" % name
-        bipolars = np.zeros((len(combs), len(config.SUBJECTS)))
+        bipolars = np.zeros((len(combs), len(config.SUBJECTS_SANDRA)))
 
         for j, comb in enumerate(combs):
             channelS = comb.split('-')[0]
@@ -152,6 +152,6 @@ if __name__ == "__main__":
 
     filename = "aggregated_noise_cancellation_MSI_3s_len10_projected.txt"
 
-    results = results.reshape(len(config.SUBJECTS)*len(combs), 3)
+    results = results.reshape(len(config.SUBJECTS_SANDRA)*len(combs), 3)
     np.savetxt(filename, results, fmt="%.2f", delimiter=',')
 

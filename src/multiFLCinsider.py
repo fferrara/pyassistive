@@ -5,7 +5,7 @@ import numpy as np
 import scipy.io as sio
 import scipy.signal as signal
 import os
-from util import config,preprocessing, processing
+from util import config,preprocessing, featex
 import matplotlib.pyplot as pl
 from scipy import stats
 
@@ -62,7 +62,7 @@ if __name__ == "__main__":
     t = np.arange( nx - 1 + 0. ) / 600.
     x = np.empty((2 * modelorder, t.shape[0]))
     for i in range(len(freqs)):
-        x[i * 4:(i+1) * 4,:] = processing.generate_references(t.shape[0], freqs[i], Fs, 2).T
+        x[i * 4:(i+1) * 4,:] = featex.generate_references(t.shape[0], freqs[i], Fs, 2).T
 
     title = "LMS  chirp  filterlen %d  nx %d  noise %.2g  mu %.2g " % (
         modelorder, nx, noise, damp )
@@ -70,9 +70,9 @@ if __name__ == "__main__":
     
 
 #...............................................................................
-    msi = processing.MSI(freqs, nx - 1, Fs)
+    msi = featex.MSI(freqs, nx - 1, Fs)
     mflc = MultiFLC( np.zeros(2 * modelorder), mu=damp )
-    flc = processing.FLC(freqs, nx - 1, Fs)
+    flc = featex.FLC(freqs, nx - 1, Fs)
 
     ws = [list() for i in range(len(freqs))]
     flcs = [list() for i in range(len(freqs))]

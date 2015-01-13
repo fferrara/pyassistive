@@ -5,7 +5,7 @@ import numpy as np
 import scipy.io as sio
 from scipy import signal
 import os
-from util import config, preprocessing, processing, offline, performance
+from util import config, preprocessing, featex, offline, performance
 import matplotlib.pyplot as plt
 import time
 
@@ -66,7 +66,7 @@ def perform(name):
 
     freqs = [5.6, 6.4, 6.9, 8]
     # method = processing.FLC(freqs, (WINLENGTH -1) * Fs, order=2, mu=0.005)
-    method = processing.MSI(freqs, (WINLENGTH - 1) * Fs, Fs)
+    method = featex.MSI(freqs, (WINLENGTH - 1) * Fs, Fs)
 
     records = np.zeros((3, 3))
 
@@ -100,14 +100,14 @@ def perform(name):
     return records
 
 if __name__ == '__main__':
-    data = np.zeros((len(config.SUBJECTS),3,3))
+    data = np.zeros((len(config.SUBJECTS_SANDRA),3,3))
 
-    for ii, name in enumerate(config.SUBJECTS):
+    for ii, name in enumerate(config.SUBJECTS_SANDRA):
         DATA_FILE = "protocolo 7/%s_prot7_config1.mat" % name
 
         data[ii, :, :] = perform(DATA_FILE)
 
     filename = "aggregated_MSI_filtfilt_Oz.txt"
 
-    data = data.reshape(len(config.SUBJECTS)*3, 3)
+    data = data.reshape(len(config.SUBJECTS_SANDRA)*3, 3)
     np.savetxt(filename, data, fmt="%.2f", delimiter=',')

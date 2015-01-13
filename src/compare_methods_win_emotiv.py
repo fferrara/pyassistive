@@ -9,7 +9,7 @@ import numpy as np
 import scipy.io as sio
 from scipy import signal
 import os
-from util import config, preprocessing, processing, offline, performance
+from util import config, preprocessing, featex, offline, performance
 import matplotlib.pyplot as plt
 
 def apply_method(data, windowSize, segmenting, criterion, method):
@@ -76,17 +76,17 @@ for i in tries:
     elif criterion == 'pseudoon':
         actualWindow = i - 1
 
-    method = processing.CCA(list(FREQUENCIES), actualWindow * config.FS, config.FS)
+    method = featex.CCA(list(FREQUENCIES), actualWindow * config.FS, config.FS)
     acc, und = apply_method(X, i, segmenting, criterion, method)
     accuracies[0].append(acc)
     undefineds[0].append(und)
 
-    method = processing.MSI(list(FREQUENCIES), actualWindow * config.FS, config.FS)
+    method = featex.MSI(list(FREQUENCIES), actualWindow * config.FS, config.FS)
     acc, und = apply_method(X, i, segmenting, criterion, method)
     accuracies[1].append(acc)
     undefineds[1].append(und)
 
-    method = processing.PSDA(list(FREQUENCIES),  actualWindow * config.FS, config.FS)
+    method = featex.PSDA(list(FREQUENCIES),  actualWindow * config.FS, config.FS)
     acc, und = apply_method(X, i, segmenting, criterion, method)
     accuracies[2].append(acc)
     undefineds[2].append(und)

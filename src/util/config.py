@@ -11,7 +11,7 @@ SENSORS = ['F3', 'FC5', 'AF3', 'F7', 'T7', 'P7', 'O1', 'O2', 'P8', 'T8', 'F8', '
 WCRITIC = np.array([0., 4., 5., 49., 50., FS / 2.])
 
 #### PATH SETTINGS ####
-MAIN_DIR = "C:/Users/iena/Documents/dev/smartenv"
+MAIN_DIR = "C:/Users/iena/Documents/dev/pyassistive"
 DATA_PATH = os.path.join(MAIN_DIR, 'data')
 STIMULI_PATH = os.path.join(MAIN_DIR, 'stimuli')
 

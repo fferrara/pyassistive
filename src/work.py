@@ -2,7 +2,7 @@ import numpy as np
 import scipy.io as sio
 import scipy.signal as signal
 import os
-from util import config,preprocessing, processing, adapt_filtering, offline, performance
+from util import config,preprocessing, featex, adapt_filtering, offline, performance
 import matplotlib.pyplot as pl
 
 def filter_classify(dataFile):
@@ -43,8 +43,8 @@ def filter_classify(dataFile):
     signalWindows = preprocessing.sliding_window(s1, (nx, s1.shape[1]), (Fs, s1.shape[1]))
     noiseWindows = preprocessing.sliding_window(n1, (nx, s1.shape[1]), (Fs, s1.shape[1]))
 
-    msi = processing.MSI(freqs, nx, Fs)
-    psda = processing.PSDA(freqs, nx, Fs)
+    msi = featex.MSI(freqs, nx, Fs)
+    psda = featex.PSDA(freqs, nx, Fs)
 
     anc = adapt_filtering.ANC(modelorder, damp)
 
@@ -66,7 +66,7 @@ def filter_classify(dataFile):
         
 
         for i, freq in enumerate(freqs):
-            x = processing.generate_references(nx, freq, Fs, harmonics)
+            x = featex.generate_references(nx, freq, Fs, harmonics)
             # Compute MSI / PSDA indicators
             befores[ii, i] = msi._compute_MSI(x, signalWin)
             # f, PSD = preprocessing.get_psd(win[:,0], nx / Fs, Fs, config.NFFT)

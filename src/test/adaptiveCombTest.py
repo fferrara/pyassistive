@@ -4,7 +4,7 @@ import numpy as np
 import scipy.io as sio
 import scipy.signal as signal
 import os
-from ..util import config,preprocessing, processing
+from ..util import config,preprocessing, featex
 from ..util import adapt_filtering
 import matplotlib.pyplot as pl
 
@@ -97,8 +97,8 @@ if __name__ == "__main__":
     # MSI TEST
     freqs = [5, 7, 10, 12]
     for freq in freqs:
-        ref = processing.generate_references(nx-period, freq, Fs)
-        msi = processing.MSI([freq], nx - period, Fs)
+        ref = featex.generate_references(nx-period, freq, Fs)
+        msi = featex.MSI([freq], nx - period, Fs)
         print 'filtered', freq, msi._compute_MSI(ref, yest.reshape(nx - period, 1))
         print 'original ', freq, msi._compute_MSI(ref, d[0:nx - period].reshape(nx - period, 1))
 

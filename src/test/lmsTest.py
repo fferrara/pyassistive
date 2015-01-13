@@ -5,7 +5,7 @@ import numpy as np
 import scipy.io as sio
 import scipy.signal as signal
 import os
-from ..util import config,preprocessing, processing
+from ..util import config,preprocessing, featex
 import matplotlib.pyplot as pl
 
 #...............................................................................
@@ -57,7 +57,7 @@ if __name__ == "__main__":
 #...............................................................................
     ys = []
     yests = []
-    lms = processing.LMS( np.zeros(2 * modelorder), mu=damp )
+    lms = featex.LMS( np.zeros(2 * modelorder), mu=damp )
     for t in xrange( nx ):
         X = x[:,t]
         y = y1[t,0]  # predict

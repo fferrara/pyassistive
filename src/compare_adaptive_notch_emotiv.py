@@ -2,13 +2,21 @@ import numpy as np
 import scipy.io as sio
 import scipy.signal as signal
 import os
-from util import config,preprocessing, processing, adapt_filtering, offline, performance
+from util import config,preprocessing, featex, adapt_filtering, offline, performance
 import matplotlib.pyplot as pl
 
 def qtest(obs):
     supp = np.array(obs)
     supp.sort()
     return (supp[2] - supp[1]) / (supp[2] - supp[0])
+
+def stdtest(obs):
+    m = obs.mean()
+    supp = np.array(obs)
+    supp.sort()
+    if supp[2] > m + 5 * supp[0:2].std():
+        return True
+    return False
 
 def filter_classify(dataFile):
     # read data
@@ -42,8 +50,8 @@ def filter_classify(dataFile):
 
     CCAchannels = np.array(['O1','O2'])
     EEG = EEG[:, np.in1d(CARchannels, CCAchannels)].reshape(len(EEG), len(CCAchannels)) 
-    msi = processing.MSI(list(freqs), nx, Fs)
-    psda = processing.PSDA(freqs, nx, Fs)
+    msi = featex.MSI(list(freqs), nx, Fs)
+    psda = featex.PSDA(freqs, nx, Fs)
 
     anfs = [adapt_filtering.ANF(harmonics * modelorder, damp) for f in freqs]
     anf = adapt_filtering.ANF(harmonics * modelorder, damp)
@@ -66,7 +74,7 @@ def filter_classify(dataFile):
         if singleFilter:
             x = np.zeros((nx, harmonics * modelorder))
             for i in range(len(freqs)):
-                x[:,i * 4:(i+1) * 4] = processing.generate_references(nx, freqs[i], Fs, 2)
+                x[:,i * 4:(i+1) * 4] = featex.generate_references(nx, freqs[i], Fs, 2)
 
             y = np.zeros((nx, len(CCAchannels)))
             for c in range(len(CCAchannels)):
@@ -79,7 +87,7 @@ def filter_classify(dataFile):
             
 
             for i, freq in enumerate(freqs):
-                x = processing.generate_references(nx, freq, Fs, harmonics)
+                x = featex.generate_references(nx, freq, Fs, harmonics)
                 # Compute MSI / PSDA indicators
                 befores[wi, i] = msi._compute_MSI(x, win)
                 # f, PSD = preprocessing.get_psd(win[:,0], nx / Fs, Fs, config.NFFT)
@@ -97,7 +105,7 @@ def filter_classify(dataFile):
             temp = []
 
             for i, freq in enumerate(freqs):
-                x = processing.generate_references(nx, freq, Fs, harmonics)
+                x = featex.generate_references(nx, freq, Fs, harmonics)
 
                 # Compute MSI / PSDA indicators
                 befores[wi, i] = msi._compute_MSI(x, win)
@@ -132,7 +140,7 @@ def filter_classify(dataFile):
             # pl.show()
 
             for i, freq in enumerate(freqs):
-                x = processing.generate_references(nx, freq, Fs, harmonics)
+                x = featex.generate_references(nx, freq, Fs, harmonics)
                 # Compute MSI / PSDA indicators
                 afters[wi, i] = msi._compute_MSI(x, y)
                 # f, PSD = preprocessing.get_psd(y[:,1], nx / Fs, Fs, config.NFFT)
@@ -146,7 +154,7 @@ def filter_classify(dataFile):
     print performance.get_accuracy(cm)
 
     for i in range(len(befores)):
-        if qtest(befores[i]) > 0.9: # 70%
+        if stdtest(befores[i]): # 70%
             print i, qtest(befores[i])
 
     fig, ax = pl.subplots( nrows=2 )
@@ -167,6 +175,6 @@ def filter_classify(dataFile):
 
 
 if __name__ == '__main__':
-    DATA_FILE = "emotiv_original_alan1_low.mat"
+    DATA_FILE = "emotiv_original_flavio3_low.mat"
     filter_classify(DATA_FILE)
 
