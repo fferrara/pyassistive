@@ -2,157 +2,93 @@ __author__ = 'iena'
 
 import gevent
 import signal
-import sys
-import os
-from collections import deque
+import msvcrt
+import time
+from jsonrpctcp import client
+from socket import error as socket_error
 from gevent.queue import Queue
-import numpy as np
-import scipy.signal
-from util import emotiv_engine
-
-def detect_peak(timeline, data, threshold = 0.2):
-    """
-    Data: 1-dimensional array
-
-    Peak => several moments with value > 0, with at least one value > threshold
-    """
-    commands = []
-    count = 2  # how many peaks must happen
-    offset = 1  # time interval the peaks happen within
-    peaks = scipy.signal.find_peaks_cwt(data, np.arange(1, 5))
-    peaks = set(peaks)
-
-    for p in peaks:
-        if not set( range(p, p+count)).issubset(peaks):
-            continue
-        if not timeline[p + count] < timeline[p] + offset:
-            continue
-        if np.any(data[p:p+count] < threshold):
-            continue
-        commands.append( timeline[p] )
-
-    return commands
 
 class Controller(object):
-    def __init__(self, engine):
+    def __init__(self):
         self.isRunning = False
-        self.isCollecting = False
-        # EmoEngine supplies two samples each 0.5 seconds, leading to 4 each second
-        self.SAMPLES = 10
-        self.FIELDS = ['timestamp','look_left','look_right','eyebrow','clench']
-        self.COMMANDS = commands = {'C' : 'Clench', 'B': 'Eyebrow', 'E' : 'Eye movement'}
+        self.isPaused = False
+        self.T = 0
+        self.cmds = 0
 
-        self.engine = engine
-        self.dataQueue = Queue()
+        # defined in global configuration of control interface
+        self.COMMANDS = {'C': 0, 'B': 1, 'E': 2}
+        self.host = 'localhost'
+        self.port = 8888
+        ###
 
-    def get_expressiv_packet(self):
-        """
-            Greenlet to get a packet from Emotiv headset.
-            Append new data to queues where consumers will read from
-        """
-        try:
-            while self.isRunning:
-                if self.isCollecting:
-                    print 'Reading packet...'
-                    buf = np.zeros((self.SAMPLES, len(self.FIELDS)))
+        self.commandClient = client.connect(self.host, self.port)
 
-                    i = 0
-                    while i < self.SAMPLES:
-                        info = engine.get_expressiv_info()
-                        if info is None:
-                            continue
-                        values = [info[field] for field in self.FIELDS]
-                        buf[i] = np.array(values)
-                        i += 1
+        # For activating the control interface, need 3 clench
+        self.clenchCounter = 0
 
-                    if self.dataQueue is not None:
-                        self.dataQueue.put_nowait(buf)
+    def wait_command(self):
+        while self.isRunning:
+            t = time.time()
+            c1 = msvcrt.getch() # get command
+            T = time.time() - t
+            if c1 == '\x03': # ctrl+c
+                self.isRunning = False
+
+            key = c1.upper()
+
+            if self.isPaused and key == 'C':  # clench
+                self.clenchCounter += 1
+                if self.clenchCounter == 3:
+                    try:
+                        print 'Activated'
+                        self.commandClient.turn_on()
+                        self.clenchCounter = 0
+                        self.isPaused = False
+                    except socket_error:
+                        print 'Socket Error while communicating with the Control Interface'
+                        print 'Is the Interface running? Check host and port settings.'
                 else:
-                    info = engine.get_expressiv_info()
+                    print 'Clench recognized'
+            elif self.isPaused and key != 'C':
+                self.clenchCounter = 0
+            else:
+                self.T += T
+                self.cmds += 1
 
-                gevent.sleep(0)
-        except KeyboardInterrupt:
-            print ('Read stopped')
-            self.isRunning = False
-        except Exception as e:
-            print ('Read Error: %s' % e)
-            self.isRunning = False
-        finally:
-            print ('Read over')
-            self.isRunning = False
+                # send command
+                if self.COMMANDS.has_key(key):
+                    self.send_receive_command(self.COMMANDS[key])
 
+                # sleep for the user to rest
+                time.sleep(2)
+                # clear buffer
+                while msvcrt.kbhit():
+                    msvcrt.getch()
+            time.sleep(0.2)  # technical
 
-    def produce_command(self, cmd):
-        try:
-            counter = 0
-            self.errors = 0
-            self.undefined = 0
-
-            while self.isRunning:
-                # Controller greenlets controls the command firing
-                print 'Trying to produce command...'
-                self.isCollecting = False
-                buf = self.dataQueue.get()
-                lookLeft = detect_peak(buf[:, 0], buf[:, 1], 1)
-                lookRight = detect_peak(buf[:, 0], buf[:, 2], 1)
-                eyebrows = detect_peak(buf[:, 0], buf[:, 3], 0.5)
-                clenchs = detect_peak(buf[:, 0], buf[:, 4], 0.5)
-
-                if len(lookLeft) > 0 or len(lookRight) > 0:
-                    print self.COMMANDS['E']
-                    if cmd != 'E':
-                        errors += 1
-                    counter = 0
-                    gevent.sleep(2)
-                elif len(clenchs) > 0:
-                    print self.COMMANDS['C']
-                    if cmd != 'C':
-                        errors += 1
-                    counter = 0
-                    gevent.sleep(2)
-                elif len(eyebrows) > 0:
-                    print self.COMMANDS['B']
-                    if cmd != 'B':
-                        errors += 1
-                    counter = 0
-                    gevent.sleep(2)
-                elif counter == 10:
-                    print 'START OVER'
-                    counter = 0
-                    self.undefined += 1
-                    gevent.sleep(0.1)
-                else:
-                    counter += 1
-                    gevent.sleep(0.1)
-
-                self.isCollecting = True
-                gevent.sleep(0)
-        except Exception as e:
-            print ('Controller error: %s' % e)
-            self.isRunning = False
-        finally:
-            print ('Controller over')
-            self.isRunning = False
+    def send_receive_command(self, cmd):
+        if self.isRunning and not self.isPaused:
+            try:
+                returned = self.commandClient.command(cmd)
+                if returned is not None and returned == 'OFF':
+                    self.isPaused = True
+                    print '# Commands %d, Average time for command %0.2f' % (controller.cmds, controller.T / controller.cmds)
+            except socket_error:
+                print 'Socket Error while communicating with the Control Interface'
+                print 'Is the Interface running? Check host and port settings.'
 
 if __name__ == '__main__':
-    engine = emotiv_engine.EmotivEngine()
-
-    cmd = raw_input('Command to test: ')
-
-    controller = Controller(engine)
+    controller = Controller()
     controller.isRunning = True
-    controller.isCollecting = True
+    controller.isPaused = True
 
-    # Create the sensor data generator
-    g1 = gevent.spawn(controller.get_expressiv_packet)
     # Create controller routine
-    g2 = gevent.spawn(controller.produce_command, cmd)
-    # Kill both at Ctrl+C
-    gevent.signal(signal.SIGINT, gevent.killall, [g1, g2])
-    # Run them until termination
+    g1 = gevent.spawn(controller.wait_command())
+    # Kill at Ctrl+C
+    #gevent.signal(signal.SIGINT, gevent.killall, g1)
+    # Run until termination
     try:
-        gevent.joinall([g1, g2])
+        g1.join()
     except KeyboardInterrupt:
+        print 'Interrupted'
         pass
-    finally:
-        print 'Errors: %d, Undefined: %d' % (controller.errors, controller.undefined)
