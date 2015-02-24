@@ -65,7 +65,7 @@ def filter_classify(dataFile):
     # label = offline.make_label_segments(config.RECORDING_ITERATIONS, config.RECORDING_PERIOD, window, len(freqs))
     # W = offline.extract_segment_start(EEG, window, config.RECORDING_ITERATIONS, config.RECORDING_PERIOD, Fs)
     label = offline.make_label_windows(config.RECORDING_ITERATIONS, config.RECORDING_PERIOD, window, len(freqs))
-    W = offline.extract_windowed_segment(EEG, window, config.RECORDING_ITERATIONS, config.RECORDING_PERIOD, Fs)
+    W = offline.extract_windowed_segment(EEG, window, config.RECORDING_PERIOD, Fs)
 
     for wi, win in enumerate(W):
         ys = []
@@ -134,10 +134,10 @@ def filter_classify(dataFile):
             # print temp
             y = np.sum(ys, axis=0)
             protocolFiltered[wi] = y
-            # fig, ax = pl.subplots( nrows=2 )
-            # fb, PSDb = preprocessing.get_psd(win[:,1], nx / Fs, Fs, config.NFFT, ax[0])
-            # fa, PSDa = preprocessing.get_psd(y[:,0], nx / Fs, Fs, config.NFFT, ax[1])
-            # pl.show()
+            fig, ax = pl.subplots( nrows=2 )
+            fb, PSDb = preprocessing.get_psd(win[:,1], nx / Fs, Fs, config.NFFT, ax[0])
+            fa, PSDa = preprocessing.get_psd(y[:,0], nx / Fs, Fs, config.NFFT, ax[1])
+            pl.show()
 
             for i, freq in enumerate(freqs):
                 x = featex.generate_references(nx, freq, Fs, harmonics)
@@ -175,6 +175,6 @@ def filter_classify(dataFile):
 
 
 if __name__ == '__main__':
-    DATA_FILE = "emotiv_original_flavio3_low.mat"
+    DATA_FILE = "fullscreen_flavio1.mat"
     filter_classify(DATA_FILE)
 

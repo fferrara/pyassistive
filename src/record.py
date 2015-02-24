@@ -45,9 +45,9 @@ class Recorder(object):
         self.PLOT_MAX_Y = 1000
 
         #### PROTOCOL DEFINITION ####
-        self.ITERATIONS = config.RECORDING_ITERATIONS
-        self.PERIOD = config.RECORDING_PERIOD # Recording stimulated SSVEP
-        self.PAUSE_INTER_RECORDING = config.PAUSE_INTER_RECORDING
+        self.ITERATIONS = 3
+        self.PERIOD = 15 # Recording stimulated SSVEP
+        self.PAUSE_INTER_RECORDING = 2
         self.STIMULI_PATH = config.STIMULI_PATH
         self.DATA_PATH = config.DATA_PATH
         self.FILENAME = filename
@@ -94,19 +94,22 @@ class Recorder(object):
         Greenlet that controls recording process.
         Performs many iterations of recording response to the stimuli, first left and then right.
         """
-        if self.LOW_FREQ:
-            TOP = [os.path.join(self.STIMULI_PATH, exe) for exe in os.listdir(self.STIMULI_PATH) if exe.endswith("64.exe")]
-            SX = [os.path.join(self.STIMULI_PATH, exe) for exe in os.listdir(self.STIMULI_PATH) if exe.endswith("69.exe")]
-            DX = [os.path.join(self.STIMULI_PATH, exe) for exe in os.listdir(self.STIMULI_PATH) if exe.endswith("80.exe")]
-        else:
-            TOP = [os.path.join(self.STIMULI_PATH, exe) for exe in os.listdir(self.STIMULI_PATH) if exe.endswith("12.exe")]
-            SX = [os.path.join(self.STIMULI_PATH, exe) for exe in os.listdir(self.STIMULI_PATH) if exe.endswith("13.exe")]
-            DX = [os.path.join(self.STIMULI_PATH, exe) for exe in os.listdir(self.STIMULI_PATH) if exe.endswith("15.exe")]
+        # if self.LOW_FREQ:
+        #     TOP = [os.path.join(self.STIMULI_PATH, exe) for exe in os.listdir(self.STIMULI_PATH) if exe.endswith("64.exe")]
+        #     SX = [os.path.join(self.STIMULI_PATH, exe) for exe in os.listdir(self.STIMULI_PATH) if exe.endswith("69.exe")]
+        #     DX = [os.path.join(self.STIMULI_PATH, exe) for exe in os.listdir(self.STIMULI_PATH) if exe.endswith("80.exe")]
+        # else:
+        #     TOP = [os.path.join(self.STIMULI_PATH, exe) for exe in os.listdir(self.STIMULI_PATH) if exe.endswith("12.exe")]
+        #     SX = [os.path.join(self.STIMULI_PATH, exe) for exe in os.listdir(self.STIMULI_PATH) if exe.endswith("13.exe")]
+        #     DX = [os.path.join(self.STIMULI_PATH, exe) for exe in os.listdir(self.STIMULI_PATH) if exe.endswith("15.exe")]
+        #
+        # TOPwindow = Popen(args=TOP)
+        # SXwindow = Popen(args=SX)
+        # DXwindow = Popen(args=DX)
 
-        TOPwindow = Popen(args=TOP)
-        SXwindow = Popen(args=SX)
-        DXwindow = Popen(args=DX)
-        gevent.sleep(10)
+        stimuliExe = os.path.join(self.STIMULI_PATH, "stimuli_all.exe")
+        stimuliWin = Popen(args=stimuliExe)
+        gevent.sleep(5)
         try:
             for i in xrange(self.ITERATIONS):
                 # TOP
@@ -151,12 +154,14 @@ class Recorder(object):
             print ('Controller error: %s' % e)
             self.isRunning = False
         finally:
-            if TOPwindow is not None:
-                TOPwindow.kill()
-            if SXwindow is not None:
-                SXwindow.kill()
-            if DXwindow is not None:
-                DXwindow.kill()
+            # if TOPwindow is not None:
+            #     TOPwindow.kill()
+            # if SXwindow is not None:
+            #     SXwindow.kill()
+            # if DXwindow is not None:
+            #     DXwindow.kill()
+            if stimuliWin is not None:
+                stimuliWin.kill()
             print ('Controller over')
             self.isRunning = False
 

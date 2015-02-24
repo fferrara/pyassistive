@@ -12,6 +12,7 @@ class Controller(object):
     def __init__(self):
         self.isRunning = False
         self.isPaused = False
+        self.SEC_INTER_CLENCH = 5
         self.T = 0
         self.cmds = 0
 
@@ -36,6 +37,8 @@ class Controller(object):
 
             key = c1.upper()
 
+            if T >= self.SEC_INTER_CLENCH:
+                self.clenchCounter = 0
             if self.isPaused and key == 'C':  # clench
                 self.clenchCounter += 1
                 if self.clenchCounter == 3:
@@ -49,6 +52,9 @@ class Controller(object):
                         print 'Is the Interface running? Check host and port settings.'
                 else:
                     print 'Clench recognized'
+                    time.sleep(1)  # a little wait
+                    while msvcrt.kbhit(): # clear buffer
+                        msvcrt.getch()
             elif self.isPaused and key != 'C':
                 self.clenchCounter = 0
             else:
@@ -58,6 +64,8 @@ class Controller(object):
                 # send command
                 if self.COMMANDS.has_key(key):
                     self.send_receive_command(self.COMMANDS[key])
+                    # log command
+                    print 'Performed: ' + str(key)
 
                 # sleep for the user to rest
                 time.sleep(2)

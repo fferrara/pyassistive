@@ -1,0 +1,70 @@
+<EmoMappingModel mappingName="provamapping.ekm" >
+    <EmoMapping enabled="1" name="Rule 1" keys="C" sendOnce="1" sendToFocus="0" targetApp="C:\Windows\System32\cmd.exe" sendHotKeys="0" ctrlKey="0" altKey="0" shiftKey="0" winKey="0" enterKey="0" hotKey="0" holdKey="0" holdTime="20" triggerDelayTime="20" player="0" mouseclickset="0" mousebutnum="-1">
+        <EmoStateCondition>
+            <enabled value="1" />
+            <action value="8" />
+            <threshold type="double" value="0.2" />
+            <actionRule value="2" />
+        </EmoStateCondition>
+        <EmoStateCondition>
+            <enabled value="1" />
+            <action value="3" />
+            <threshold type="double" value="0.8" />
+            <actionRule value="3" />
+        </EmoStateCondition>
+    </EmoMapping>
+    <EmoMapping enabled="1" name="Rule 2" keys="B" sendOnce="1" sendToFocus="0" targetApp="C:\Windows\System32\cmd.exe" sendHotKeys="0" ctrlKey="0" altKey="0" shiftKey="0" winKey="0" enterKey="0" hotKey="0" holdKey="0" holdTime="20" triggerDelayTime="20" player="0" mouseclickset="0" mousebutnum="-1">
+        <EmoStateCondition>
+            <enabled value="1" />
+            <action value="3" />
+            <threshold type="double" value="0.2" />
+            <actionRule value="2" />
+        </EmoStateCondition>
+        <EmoStateCondition>
+            <enabled value="1" />
+            <action value="8" />
+            <threshold type="double" value="0.8" />
+            <actionRule value="3" />
+        </EmoStateCondition>
+    </EmoMapping>
+    <EmoMapping enabled="1" name="Rule 3" keys="E" sendOnce="1" sendToFocus="0" targetApp="C:\Windows\System32\cmd.exe" sendHotKeys="0" ctrlKey="0" altKey="0" shiftKey="0" winKey="0" enterKey="0" hotKey="0" holdKey="0" holdTime="20" triggerDelayTime="20" player="0" mouseclickset="0" mousebutnum="-1">
+        <EmoStateCondition>
+            <enabled value="1" />
+            <action value="5" />
+            <threshold type="bool" value="true" />
+            <actionRule value="0" />
+        </EmoStateCondition>
+        <EmoStateCondition>
+            <enabled value="1" />
+            <action value="8" />
+            <threshold type="double" value="0.8" />
+            <actionRule value="3" />
+        </EmoStateCondition>
+        <EmoStateCondition>
+            <enabled value="1" />
+            <action value="3" />
+            <threshold type="double" value="0.8" />
+            <actionRule value="3" />
+        </EmoStateCondition>
+    </EmoMapping>
+    <EmoMapping enabled="1" name="Rule 4" keys="E" sendOnce="1" sendToFocus="0" targetApp="C:\Windows\System32\cmd.exe" sendHotKeys="0" ctrlKey="0" altKey="0" shiftKey="0" winKey="0" enterKey="0" hotKey="0" holdKey="0" holdTime="20" triggerDelayTime="20" player="0" mouseclickset="0" mousebutnum="-1">
+        <EmoStateCondition>
+            <enabled value="1" />
+            <action value="6" />
+            <threshold type="bool" value="true" />
+            <actionRule value="0" />
+        </EmoStateCondition>
+        <EmoStateCondition>
+            <enabled value="1" />
+            <action value="3" />
+            <threshold type="double" value="0.8" />
+            <actionRule value="3" />
+        </EmoStateCondition>
+        <EmoStateCondition>
+            <enabled value="1" />
+            <action value="8" />
+            <threshold type="double" value="0.8" />
+            <actionRule value="3" />
+        </EmoStateCondition>
+    </EmoMapping>
+</EmoMappingModel>

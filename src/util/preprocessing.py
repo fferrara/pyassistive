@@ -140,31 +140,6 @@ def _get_fir_filter(passband, fs, order=183, weights=[5.75, 1., 5.75], mask=[0, 
     # return remez(order, passband, mask, weights, Hz=fs), 1.
     return remez(order, passband, mask, Hz=fs), 1.
 
-def get_frequency_response(b, a, plot = False):
-    w,h = signal.freqz(b,a)
-    h_dB = 20 * log10 (abs(h))
-
-    if plot:
-        plt.subplot(211)
-        plt.plot(w/max(w),h_dB)
-        plt.ylim(-150, 5)
-        plt.ylabel('Magnitude (db)')
-        plt.xlabel(r'Normalized Frequency (x$\pi$rad/sample)')
-        plt.title(r'Frequency response')
-    
-        plt.subplot(212)
-        plt.l = len(b)
-        plt.impulse = repeat(0.,l); impulse[0] =1.
-        plt.x = arange(0,l)
-        plt.response = signal.lfilter(b,a,impulse)
-        plt.subplot(211)
-        plt.stem(x, response)
-        plt.ylabel('Amplitude')
-        plt.xlabel(r'n (samples)')
-        plt.title(r'Impulse response')
-
-    return w / max(w), h_dB
-
 def get_psd(data, window, fs, nfft, plot = None):
     samples = window * fs
     f, PSD = welch(data, fs, 'hann', scaling = 'density', nfft=nfft, nperseg=samples)
