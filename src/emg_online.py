@@ -90,13 +90,5 @@ if __name__ == '__main__':
     controller.isRunning = True
     controller.isPaused = True
 
-    # Create controller routine
-    g1 = gevent.spawn(controller.wait_command())
-    # Kill at Ctrl+C
-    #gevent.signal(signal.SIGINT, gevent.killall, g1)
-    # Run until termination
-    try:
-        g1.join()
-    except KeyboardInterrupt:
-        print 'Interrupted'
-        pass
+    controller.wait_command()
+

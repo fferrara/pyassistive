@@ -23,25 +23,25 @@ def filter_classify(dataFile):
     data = sio.loadmat(os.path.join(config.DATA_PATH, dataFile))
     EEG = data['X'].astype('float32', copy=False)
 
+    # CARchannels = np.array(['P7','O1','O2','P8'])
     CARchannels = np.array(['F3','P7','O1','O2','P8','F4'])
-    EEG = EEG[:, np.in1d(np.array(config.SENSORS), CARchannels)]
-
-    # CAR FILTER
-    EEG -= EEG.mean(axis=0)
-    EEG = np.dot(EEG, preprocessing.CAR(EEG.shape[1]))
+    # EEG = EEG[:, np.in1d(np.array(config.SENSORS), CARchannels)]
 
     Fs = config.FS
     freqs = [6.4, 6.9, 8]
 
     # HIGHPASS FILTER
-    # Per Emotiv DEVE ESSERE DI ORDINE BASSO PER DARE UN POCHINO DI RITARDO
     Wcritic = np.array([0., 4., 5., 64.])
     b, a = preprocessing._get_fir_filter(Wcritic, config.FS, mask=[0, 1])
     EEG = signal.filtfilt(b, (a,), EEG, axis=0)
 
+    # CAR FILTER
+    EEG -= EEG.mean(axis=0)
+    EEG = np.dot(EEG, preprocessing.CAR(EEG.shape[1]))
+
     # Filter parameters
     damp = .005
-    window = 10
+    window = 4
     nx = Fs * window
     modelorder = 2
     harmonics = 2
@@ -134,10 +134,10 @@ def filter_classify(dataFile):
             # print temp
             y = np.sum(ys, axis=0)
             protocolFiltered[wi] = y
-            fig, ax = pl.subplots( nrows=2 )
-            fb, PSDb = preprocessing.get_psd(win[:,1], nx / Fs, Fs, config.NFFT, ax[0])
-            fa, PSDa = preprocessing.get_psd(y[:,0], nx / Fs, Fs, config.NFFT, ax[1])
-            pl.show()
+            # fig, ax = pl.subplots( nrows=2 )
+            # fb, PSDb = preprocessing.get_psd(win[:,1], nx / Fs, Fs, config.NFFT, ax[0])
+            # fa, PSDa = preprocessing.get_psd(y[:,0], nx / Fs, Fs, config.NFFT, ax[1])
+            # pl.show()
 
             for i, freq in enumerate(freqs):
                 x = featex.generate_references(nx, freq, Fs, harmonics)
@@ -175,6 +175,6 @@ def filter_classify(dataFile):
 
 
 if __name__ == '__main__':
-    DATA_FILE = "fullscreen_flavio1.mat"
+    DATA_FILE = "fullscreen_carlos1.mat"
     filter_classify(DATA_FILE)
 

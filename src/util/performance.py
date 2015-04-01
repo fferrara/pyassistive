@@ -35,12 +35,23 @@ def get_cohen_k(matrix):
 
     return (Po - Pe) / (1 - Pe)
 
-def get_ITR(classes, accuracy, unclassifiedRate = 0):
+
+def get_ITR(classes, accuracy, trial):
     """
-    Preso da Noninvasive Brain-Actuated Control of a Mobile
-        Robot by Human EEG
+    Standard ITR formula
     """
     np.seterr(divide='ignore', invalid='ignore')
     itr = np.log2(classes) + np.nan_to_num(accuracy * np.log2(accuracy)) + np.nan_to_num((1 - accuracy) * np.log2((1 - accuracy) / (classes - 1)))
     np.seterr(divide='warn', invalid='warn')
-    return (1 - unclassifiedRate) * itr
+    return (1/trial) * itr
+
+
+def get_utility(devices, accuracy, trial):
+    """
+    See articles.
+    """
+    dsts = np.array([0,1,2,3,2,1])
+    if accuracy < 0.5:
+        return 0
+    else:
+        return np.mean(((2*accuracy - 1)*np.log2(devices)) / ((dsts+1) * trial))

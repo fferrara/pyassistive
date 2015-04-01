@@ -22,12 +22,16 @@ def apply_method(data, windowSize, segmenting, criterion, method):
     if criterion == 'offline':
         o = offline.offline_classify(windows, FREQUENCIES, method)
         cm = performance.get_confusion_matrix(label, o, len(FREQUENCIES))
-        return 100 * performance.get_accuracy(cm), 0
+        return performance.get_accuracy(cm), 0
         # return performance.get_cohen_k(cm), 0
     elif criterion == 'pseudoon':
-        o, c, m = offline.pseudo_online_classify(windows, FREQUENCIES, FS, method, pause=0, period=PERIOD)
+        # o, c, m = offline.pseudo_online_classify(windows, FREQUENCIES, FS, method, pause=0, period=PERIOD)
+        o, avg_time = offline.pseudo_online_classify(windows, FREQUENCIES, FS, method, pause=0, period=PERIOD)
         cm = performance.get_confusion_matrix(label, o, len(FREQUENCIES))
-        return 100 * performance.get_accuracy(cm), (m + 0.) / (m + c)
+        if isinstance(method, featex.MSI):
+            print cm
+        # return 100 * performance.get_accuracy(cm), (m + 0.) / (m + c)
+        return performance.get_accuracy(cm), avg_time
     else:
         raise AttributeError
 
@@ -51,7 +55,7 @@ def process_file(dataFile, winLengths, verbose=True):
 
     accuracies = np.zeros((5, len(lengths)))
     ITRs = np.zeros((5, len(lengths)))
-    undefineds = np.zeros((5, len(lengths)))
+    avg_times = np.zeros((5, len(lengths)))
 
     # Comparison parameters
     # criterion == 'offline' -> classifier just a criterion of maxima. Windows->Output 1:1
@@ -85,53 +89,47 @@ def process_file(dataFile, winLengths, verbose=True):
 
         # 3 channels CCA
         method = featex.CCA(list(FREQUENCIES), actualWindow * FS, FS)
-        acc, und = apply_method(y, length, segmenting, criterion, method)
+        acc, avg_time = apply_method(y, length, segmenting, criterion, method)
 
-        accuracies[0, il] = acc
-        undefineds[0, il] = und
-        # ITRs[0, il] = performance.get_ITR(4, acc, und) * (60 / actualWindow)
-        ITRs[0, il] = length / (1 - und)
+        accuracies[0, il] = acc * 100
+        avg_times[0, il] = avg_time
+        ITRs[0, il] = performance.get_ITR(4, acc, avg_time) * 60
 
         # 3 channels MSI
         method = featex.MSI(list(FREQUENCIES), actualWindow * FS, FS)
-        acc, und = apply_method(y, length, segmenting, criterion, method)
+        acc, avg_time = apply_method(y, length, segmenting, criterion, method)
 
-        accuracies[1, il] = acc
-        undefineds[1, il] = und
-        # ITRs[1, il] = performance.get_ITR(4, acc, und) * (60 / actualWindow)
-        ITRs[1, il] = length / (1 - und)
+        accuracies[1, il] = acc * 100
+        avg_times[1, il] = avg_time
+        ITRs[1, il] = performance.get_ITR(4, acc, avg_time) * 60
 
         # 2 channels MSI
         y = yi[:, np.in1d(config.SENSORS_SANDRA, ['O2', 'Oz'])]
         method = featex.MSI(list(FREQUENCIES), actualWindow * FS, FS)
-        acc, und = apply_method(y, length, segmenting, criterion, method)
+        acc, avg_time = apply_method(y, length, segmenting, criterion, method)
 
-        accuracies[2, il] = acc
-        undefineds[2, il] = und
-        # ITRs[2, il] = performance.get_ITR(4, acc, und) * (60 / actualWindow)
-        ITRs[2, il] = length / (1 - und)
-
+        accuracies[2, il] = acc * 100
+        avg_times[2, il] = avg_time
+        ITRs[2, il] = performance.get_ITR(4, acc, avg_time) * 60
         # 1 channel MSI
         y = yi[:, np.in1d(config.SENSORS_SANDRA, ['Oz'])]
         method = featex.MSI(list(FREQUENCIES), actualWindow * FS, FS)
-        acc, und = apply_method(y, length, segmenting, criterion, method)
+        acc, avg_time = apply_method(y, length, segmenting, criterion, method)
 
-        accuracies[3, il] = acc
-        undefineds[3, il] = und
-        # ITRs[3, il] = performance.get_ITR(4, acc, und) * (60 / actualWindow)
-        ITRs[3, il] = length / (1 - und)
+        accuracies[3, il] = acc * 100
+        avg_times[3, il] = avg_time
+        ITRs[3, il] = performance.get_ITR(4, acc, avg_time) * 60
 
         # 1 channel PSDA
         y = yi[:, np.in1d(config.SENSORS_SANDRA, ['Oz'])]
         method = featex.PSDA(list(FREQUENCIES), actualWindow * FS, FS)
-        acc, und = apply_method(y, length, segmenting, criterion, method)
+        acc, avg_time = apply_method(y, length, segmenting, criterion, method)
 
-        accuracies[4, il] = acc
-        undefineds[4, il] = und
-        # ITRs[4, il] = performance.get_ITR(4, acc, und) * (60 / actualWindow)
-        ITRs[4, il] = length / (1 - und)
+        accuracies[4, il] = acc * 100
+        avg_times[4, il] = avg_time
+        ITRs[4, il] = performance.get_ITR(4, acc, avg_time) * 60
 
-    return accuracies, undefineds, ITRs
+    return accuracies, avg_times, ITRs
 
 
 if __name__ == '__main__':
@@ -146,11 +144,9 @@ if __name__ == '__main__':
     lengths = [2, 3, 4, 5]
 
     PLOT = True
-    SAVE = False
-
     if PLOT:
-        DATA_FILE = "protocolo 7/alessandra_prot7_config1.mat"
-        a, u, i = process_file(DATA_FILE, lengths)
+        DATA_FILE = "protocolo 7/matheus_prot7_config1.mat"
+        a, t, i = process_file(DATA_FILE, lengths)
 
         fig = plt.figure(1)
         fig.suptitle(DATA_FILE)
@@ -170,11 +166,11 @@ if __name__ == '__main__':
         ax = plt.subplot(132)
         plt.xlabel("Window length")
         plt.ylabel("Time for command")
-        plt.plot(lengths, u[0], '-or', label='3 ch CCA')
-        plt.plot(lengths, u[1], '-oy', label='3 ch MSI')
-        plt.plot(lengths, u[2], '-ob', label='2 ch MSI')
-        plt.plot(lengths, u[3], '-om', label='1 ch MSI')
-        plt.plot(lengths, u[4], '-og', label='1 ch PSDA')
+        plt.plot(lengths, t[0], '-or', label='3 ch CCA')
+        plt.plot(lengths, t[1], '-oy', label='3 ch MSI')
+        plt.plot(lengths, t[2], '-ob', label='2 ch MSI')
+        plt.plot(lengths, t[3], '-om', label='1 ch MSI')
+        plt.plot(lengths, t[4], '-og', label='1 ch PSDA')
         box = ax.get_position()
         ax.set_position([box.x0, box.y0 + box.height * 0.1,
                          box.width, box.height * 0.9])
@@ -196,17 +192,3 @@ if __name__ == '__main__':
         ax.legend(loc='upper center', bbox_to_anchor=(0, -0.1),
                   fancybox=True, shadow=True, ncol=5)
         plt.show()
-
-    if SAVE:
-        data = np.zeros((len(config.SUBJECTS_SANDRA), 5, len(lengths)))
-
-        for ii, name in enumerate(config.SUBJECTS_SANDRA):
-            DATA_FILE = "protocolo 7/%s_prot7_config1.mat" % name
-
-            _, _, c = process_file(DATA_FILE, lengths, False)
-            print '##'
-            data[ii, :, :] = c
-
-        filename = "aggregated_compare.txt"
-        data = data.reshape(len(config.SUBJECTS_SANDRA)*5, len(lengths))
-        np.savetxt(filename, data, fmt="%.2f", delimiter=',')

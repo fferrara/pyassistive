@@ -23,7 +23,6 @@ def apply_method(data, windowSize, segmenting, criterion, method, prot_iteration
         o = offline.offline_classify(windows, FREQUENCIES, method)
         cm = performance.get_confusion_matrix(label, o, len(FREQUENCIES))
         return performance.get_accuracy(cm), 0
-        # return performance.get_cohen_k(cm), 0
     elif criterion == 'pseudoon':
         o, avg_time = offline.pseudo_online_classify(windows, FREQUENCIES, FS, method, pause=0, period=prot_period)
         cm = performance.get_confusion_matrix(label, o, len(FREQUENCIES))
@@ -35,32 +34,27 @@ def apply_method(data, windowSize, segmenting, criterion, method, prot_iteration
 def perform(name):
     """
     Perform preprocessing and classification using one method and one window length
-    Return a matrix: acc = accuracy und = undefinedRate
-    [20 acc20 und20
-     10 acc10 und10
-     5 acc5 und5]
+    Return a vector: [acc avg_time itr utility]
     """
     # read data
     data = sio.loadmat(os.path.join(config.DATA_PATH, name))
-    X = data['data']
+    X = data['X']
 
-    # CAR FILTER & PASSBAND FILTER
-    Wcritic = np.array([0., 4., 5., 49., 50., 300.])
-    b, a = preprocessing._get_fir_filter(Wcritic, FS, 851)
-    X = signal.fftconvolve(X, b[:, np.newaxis], mode='valid')
+    # select channels and best CCAchannels for PSDA
+    CARchannels = np.array(['F3','P7','O1','O2','P8','F4'])
+    # X = X[:, np.in1d(np.array(config.SENSORS), CARchannels)]
 
+    # Filtro passaalto
+    Wcritic = np.array([0., 4., 5., 64.])
+    b, a = preprocessing._get_fir_filter(Wcritic, FS, mask=[0, 1])
+    X = signal.filtfilt(b, (a,), X, axis=0)
+
+    # CAR FILTER
     X -= X.mean(axis=0)
     X = np.dot(X, preprocessing.CAR(X.shape[1]))
 
-    chans = np.in1d(config.SENSORS_SANDRA, CHANNELS)
-    _ = X[0:160 * FS, chans].reshape(160 * FS, len(CHANNELS))  # protocol first part, 20s x 2
-    y2 = X[160 * FS: 320 * FS, chans].reshape(160 * FS, len(CHANNELS))  # protocol second part, 10s x 4
-    y3 = X[320 * FS: 420 * FS, chans].reshape(X.shape[0] - 320 * FS, len(CHANNELS))  # protocol third part, 5s x 5
-
-    # Plotting spectrum to observe power distribution
-    # f,psd = preprocessing.get_psd(y1[:,0], 3, Fs)
-    # plt.plot(f,psd)
-    # plt.show()
+    myChannels = np.array(CHANNELS)
+    X = X[:, np.in1d(CARchannels,myChannels)].reshape(len(X), len(myChannels))
 
     # Comparison parameters
     # criterion == 'offline' -> classifier just a criterion of maxima. Windows->Output 1:1
@@ -71,38 +65,30 @@ def perform(name):
     segmenting = 'sliding'
     method = METHOD(list(FREQUENCIES), (WINLENGTH - 1) * FS, FS)
 
-    records = np.zeros((2, 5))
-
-    acc, avg_time = apply_method(y2, WINLENGTH, segmenting, criterion, method, prot_iterations=4, prot_period=10)
+    acc, avg_time = apply_method(X, WINLENGTH, segmenting, criterion, method,
+                                 prot_iterations=config.RECORDING_ITERATIONS, prot_period=config.RECORDING_PERIOD)
     # avg_time = WINLENGTH + und / (1 - und)
     itr = performance.get_ITR(4, acc, avg_time) * 60
     ut = performance.get_utility(6, acc, avg_time) * 60
-    records[0, :] = [10, 100 * acc, avg_time, itr, ut]
-    print '##'
-
-    acc, avg_time = apply_method(y3, WINLENGTH, segmenting, criterion, method, prot_iterations=5, prot_period=5)
-    # avg_time = WINLENGTH + und / (1 - und)
-    itr = performance.get_ITR(4, acc, avg_time) * 60
-    ut = performance.get_utility(6, acc, avg_time) * 60
-    records[1, :] = [5, 100 * acc, avg_time, itr, ut]
+    records = np.array([100 * acc, avg_time, itr, ut])
     print '##'
 
     return records
 
 
 if __name__ == '__main__':
-    FREQUENCIES = [5.6, 6.4, 6.9, 8]
-    FS = 600
-
-    CHANNELS = ['Oz', 'O2', 'O1']
+    FREQUENCIES = [6.4, 6.9, 8.0]
+    FS = config.FS
+    CHANNELS = ['O1']
     METHOD = featex.CCA
 
-    for WINLENGTH in [2, 3, 4, 5]:
-        data = np.zeros((len(config.SUBJECTS_SANDRA), 2, 5))
-        for ii, name in enumerate(config.SUBJECTS_SANDRA):
-            DATA_FILE = "protocolo 7/%s_prot7_config1.mat" % name
-            data[ii, :, :] = perform(DATA_FILE)
+    SUBJECTS = ['alan1', 'alan2', 'alex1', 'alex2', 'carlos1', 'carlos2', 'flavio1', 'flavio2']
 
-        filename = "sandra_CCA_" + str(CHANNELS) + "_" + str(WINLENGTH) + ".txt"
-        data = data.reshape(len(config.SUBJECTS_SANDRA) * 2, 5)
+    for WINLENGTH in [3]:
+        data = np.zeros((len(SUBJECTS), 4))
+        for ii, name in enumerate(SUBJECTS):
+            DATA_FILE = "fullscreen_%s.mat" % name
+            data[ii, :] = perform(DATA_FILE)
+
+        filename = "mio_CCAO1_" + str(WINLENGTH) + ".txt"
         np.savetxt(filename, data, fmt="%.2f", delimiter=',')

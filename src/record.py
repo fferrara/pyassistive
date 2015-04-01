@@ -40,13 +40,13 @@ class Recorder(object):
         self.isRunning = False
         self.isRecording = False
 
-        self.sensors = config.SENSORS
+        self.sensors = np.array(['F3','P7','O1','O2','P8','F4'])
         self.PLOT_MIN_Y = 0
         self.PLOT_MAX_Y = 1000
 
         #### PROTOCOL DEFINITION ####
-        self.ITERATIONS = 3
-        self.PERIOD = 15 # Recording stimulated SSVEP
+        self.ITERATIONS = config.RECORDING_ITERATIONS
+        self.PERIOD = config.RECORDING_PERIOD # Recording stimulated SSVEP
         self.PAUSE_INTER_RECORDING = 2
         self.STIMULI_PATH = config.STIMULI_PATH
         self.DATA_PATH = config.DATA_PATH

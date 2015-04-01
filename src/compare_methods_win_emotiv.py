@@ -26,9 +26,9 @@ def apply_method(data, windowSize, segmenting, criterion, method):
         return 100 * performance.get_accuracy(cm), 0
         # return performance.get_cohen_k(cm), 0
     elif criterion == 'pseudoon':
-        o, c, m = offline.pseudo_online_classify(windows, FREQUENCIES, config.FS, method, pause=0, period=config.RECORDING_PERIOD)
+        o, avg_time = offline.pseudo_online_classify(windows, FREQUENCIES, config.FS, method, pause=0, period=config.RECORDING_PERIOD)
         cm = performance.get_confusion_matrix(label, o, len(FREQUENCIES))
-        return 100 * performance.get_accuracy(cm), (m + 0.) / (m + c)   
+        return 100 * performance.get_accuracy(cm), avg_time
 
 
 FREQUENCIES = [6.4, 6.9, 8]
@@ -40,7 +40,7 @@ def compare_methods(dataFile):
 
     # select channels and best CCAchannels for PSDA
     CARchannels = np.array(['F3','P7','O1','O2','P8','F4'])
-    X = X[:, np.in1d(np.array(config.SENSORS), CARchannels)]
+    # X = X[:, np.in1d(np.array(config.SENSORS), CARchannels)]
 
     # Filtro passaalto
     Wcritic = np.array([0., 4., 5., 64.])
@@ -56,7 +56,7 @@ def compare_methods(dataFile):
     [accuracies.append([]) for i in xrange(3)]
     undefineds = []
     [undefineds.append([]) for i in xrange(3)]
-    tries = range(3, 20)
+    tries = range(3, 9)
 
     myChannels = np.array(['O1','O2'])
     X = X[:, np.in1d(CARchannels,myChannels)].reshape(len(X), len(myChannels))
@@ -77,19 +77,19 @@ def compare_methods(dataFile):
             actualWindow = i - 1
 
         method = featex.CCA(list(FREQUENCIES), actualWindow * config.FS, config.FS)
-        acc, und = apply_method(X, i, segmenting, criterion, method)
+        acc, avg_time = apply_method(X, i, segmenting, criterion, method)
         accuracies[0].append(acc)
-        undefineds[0].append(und)
+        # undefineds[0].append(i + und / (1 - und))
 
         method = featex.MSI(list(FREQUENCIES), actualWindow * config.FS, config.FS)
-        acc, und = apply_method(X, i, segmenting, criterion, method)
+        acc, avg_time = apply_method(X, i, segmenting, criterion, method)
         accuracies[1].append(acc)
-        undefineds[1].append(und)
+        # undefineds[1].append(i + und / (1 - und))
 
         method = featex.PSDA(list(FREQUENCIES),  actualWindow * config.FS, config.FS)
-        acc, und = apply_method(X, i, segmenting, criterion, method)
+        acc, avg_time = apply_method(X, i, segmenting, criterion, method)
         accuracies[2].append(acc)
-        undefineds[2].append(und)
+        # undefineds[2].append(i + und / (1 - und))
 
 
     fig = plt.figure(1)
@@ -114,5 +114,5 @@ def compare_methods(dataFile):
     plt.show()
 
 if __name__ == '__main__':
-    sample = "emotiv_original_alan2_low.mat"
+    sample = "fullscreen_carlos1.mat"
     compare_methods(sample)

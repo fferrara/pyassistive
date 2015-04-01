@@ -5,6 +5,7 @@ Metodi vari per analisi offline
 
 import numpy as np
 from preprocessing import sliding_window
+import time
 
 
 def extract_windowed_segment(data, ws, period, fs):
@@ -170,12 +171,15 @@ def pseudo_online_classify(windows, frequencies, fs, method, period, pause=1, st
     missed = 0  # n° of windows without output
     count = 0  # n° of output provided
     out = np.empty((windows.shape[0]))
+    delay = [] # delay in terms of windows for each output
 
     # Windowing
     iterator = enumerate(windows)
     windowLength = windows.shape[1] / fs
     winInSegment = period - windowLength + 1
     subSamples = (windowLength - 1) * fs
+
+    # t = np.ones((windows.shape[0]))
 
     for ii, win in iterator:
         # N° subwindows = step + 1
@@ -190,6 +194,8 @@ def pseudo_online_classify(windows, frequencies, fs, method, period, pause=1, st
             if float(temp.count(frequencies[fIndex])) / len(temp) > 0.8:
                 count += 1
                 out[ii] = fIndex
+                delay.append(missed)
+                missed = 0
 
                 # simulate online waiting for gaze shift and full window
                 for j in range(pause + windowLength):
@@ -205,4 +211,4 @@ def pseudo_online_classify(windows, frequencies, fs, method, period, pause=1, st
             missed += 1
             out[ii] = -1
 
-    return out, count, missed
+    return out, windowLength + np.mean(delay)
